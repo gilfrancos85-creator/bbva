@@ -86,7 +86,7 @@ export default function AuthPage() {
               <path d="M2 8.5h20M6 12h2m4 0h2M6 15.5h2m4 0h6M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </div>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>BBVA</h1>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>NovoBanco</h1>
           <p style={{ color: "var(--text-muted)", fontSize: "14px", marginTop: "6px" }}>
             {mode === "login" ? "Bienvenido de vuelta" : "Crea tu cuenta gratis"}
           </p>

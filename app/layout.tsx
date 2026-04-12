@@ -3,13 +3,13 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import ServiceWorkerRegister from "./dashboard/components/ServiceWorkerRegister";
 export const metadata: Metadata = {
-  title: "BBVA",
+  title: "NovoBanco",
   description: "Tu banco digital moderno",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "BBVA",
+    title: "NovoBanco",
   },
   icons: {
     icon: "/icons/icon-192x192.png",

@@ -173,7 +173,7 @@ export default function Sidebar() {
             fontSize: "17px",
           }}
         >
-          BBVA
+          NovoBanco
         </span>
       </div>
 

@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       uid: cred.user.uid,
       name,
       email,
-      balance: 1000,
+      balance: 0,
       isActive: false,
       createdAt: Date.now(),
       card,
