@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import ServiceWorkerRegister from "./dashboard/components/ServiceWorkerRegister";
+import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
+import InstallPWA from "./components/InstallPWA";
+
 export const metadata: Metadata = {
-  title: "NovoBanco",
+  title: "NovoBanco — Simulador Bancario",
   description: "Tu banco digital moderno",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -12,8 +14,8 @@ export const metadata: Metadata = {
     title: "NovoBanco",
   },
   icons: {
-    icon: "/icons/icon-192x192.png",
-    apple: "/icons/icon-152x152.png",
+    icon: "/icons/logo.svg",
+    apple: "/icons/logo.svg",
   },
 };
 
@@ -30,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <ServiceWorkerRegister />
+          <InstallPWA />
           {children}
         </AuthProvider>
       </body>
