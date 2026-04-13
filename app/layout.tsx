@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import ServiceWorkerRegister from "./dashboard/components/ServiceWorkerRegister";
+import ServiceWorkerRegister from "./components/ServiceWorkerRegister";
 import InstallPWA from "./components/InstallPWA";
 export const metadata: Metadata = {
   title: "NovoBanco — Simulador Bancario",
