@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { doc, updateDoc, addDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { sendNotificationEmail } from "@/lib/email";
@@ -89,38 +89,60 @@ export default function TransactionForm({ type }: TransactionFormProps) {
         const q = query(collection(db, "users"), where("email", "==", recipientEmail));
         const snap = await getDocs(q);
         if (snap.empty) { setError("No se encontró ningún usuario con ese correo."); setLoading(false); return; }
-
         const recipientDoc = snap.docs[0];
         const recipient = recipientDoc.data();
-        const recipientNewBalance = recipient.balance + amt;
+
         const senderNewBalance = profile.balance - amt;
+        const recipientNewBalance = recipient.balance + amt;
+        const now = Date.now();
 
-        await updateDoc(doc(db, "users", user.uid), { balance: senderNewBalance });
-        await updateDoc(doc(db, "users", recipientDoc.id), { balance: recipientNewBalance });
+        const recipientTxId = doc(collection(db, "users", recipientDoc.id, "transactions")).id;
+        const batch = writeBatch(db);
 
-        await addDoc(collection(db, "users", user.uid, "transactions"), {
-          type: "transfer_out", amount: amt,
+        const senderRef = doc(db, "users", user.uid);
+        batch.update(senderRef, { balance: senderNewBalance });
+
+        const senderTxRef = doc(collection(db, "users", user.uid, "transactions"));
+        batch.set(senderTxRef, {
+          type: "transfer_out",
+          amount: amt,
           description: description || `Transferencia a ${recipientEmail}`,
-          timestamp: Date.now(), balanceAfter: senderNewBalance,
+          timestamp: now,
+          balanceAfter: senderNewBalance,
           counterpartEmail: recipientEmail,
         });
-        await addDoc(collection(db, "users", recipientDoc.id, "transactions"), {
-          type: "transfer_in", amount: amt,
+
+        const recipientRef = doc(db, "users", recipientDoc.id);
+        batch.update(recipientRef, {
+          balance: recipientNewBalance,
+          increment: amt,
+          transactionId: recipientTxId,
+        });
+
+        const recipientTxRef = doc(db, "users", recipientDoc.id, "transactions", recipientTxId);
+        batch.set(recipientTxRef, {
+          type: "transfer_in",
+          amount: amt,
           description: description || `Transferencia de ${profile.email}`,
-          timestamp: Date.now(), balanceAfter: recipientNewBalance,
+          timestamp: now,
+          balanceAfter: recipientNewBalance,
           counterpartEmail: profile.email,
         });
 
-        await sendNotificationEmail({
-          to_email: profile.email, to_name: profile.name,
-          subject: "Transferencia enviada — NovoBanco",
-          message: `Has enviado ${fmt(amt)} a ${recipientEmail}. Tu nuevo saldo es ${fmt(senderNewBalance)}.`,
-        });
-        await sendNotificationEmail({
-          to_email: recipient.email, to_name: recipient.name,
-          subject: "Transferencia recibida — NovoBanco",
-          message: `Has recibido ${fmt(amt)} de ${profile.email}. Tu nuevo saldo es ${fmt(recipientNewBalance)}.`,
-        });
+        await batch.commit();
+
+        try {
+          await sendNotificationEmail({
+            to_email: profile.email, to_name: profile.name,
+            subject: "Transferencia enviada — NovoBanco",
+            message: `Has enviado ${fmt(amt)} a ${recipientEmail}. Tu nuevo saldo es ${fmt(senderNewBalance)}.`,
+          });
+          await sendNotificationEmail({
+            to_email: recipient.email, to_name: recipient.name,
+            subject: "Transferencia recibida — NovoBanco",
+            message: `Has recibido ${fmt(amt)} de ${profile.email}. Tu nuevo saldo es ${fmt(recipientNewBalance)}.`,
+          });
+        } catch (emailErr) { console.error("Email error:", emailErr); }
 
         setSuccess(`Transferencia de ${fmt(amt)} a ${recipientEmail} realizada con éxito.`);
       }
@@ -144,7 +166,6 @@ export default function TransactionForm({ type }: TransactionFormProps) {
   };
   const cfg = configs[type];
 
-  // Bloquer le retrait si compte inactif
   if (type === "withdrawal" && profile?.isActive === false) {
     return (
       <div className="animate-fade-up" style={{ maxWidth: "500px", margin: "0 auto" }}>
@@ -159,25 +180,15 @@ export default function TransactionForm({ type }: TransactionFormProps) {
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 20px",
             fontSize: "28px",
-          }}>
-            🔒
-          </div>
-          <h2 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}>
-            Cuenta no activa
-          </h2>
+          }}>🔒</div>
+          <h2 style={{ fontSize: "18px", fontWeight: 700, marginBottom: "12px" }}>Cuenta no activa</h2>
           <p style={{ color: "var(--text-muted)", fontSize: "14px", lineHeight: 1.7, marginBottom: "24px" }}>
             Tu cuenta aún no está activada. Para realizar retiros,
             ponte en contacto con el banco para activar tu cuenta.
           </p>
           <div style={{
-            background: "var(--surface-2)",
-            borderRadius: "10px",
-            padding: "16px 20px",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: "14px",
-            color: "var(--text-muted)",
+            background: "var(--surface-2)", borderRadius: "10px", padding: "16px 20px",
+            display: "inline-flex", alignItems: "center", gap: "10px", fontSize: "14px", color: "var(--text-muted)",
           }}>
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
               <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
@@ -226,10 +237,7 @@ export default function TransactionForm({ type }: TransactionFormProps) {
               IMPORTE (€)
             </label>
             <div style={{ position: "relative" }}>
-              <span style={{
-                position: "absolute", left: "16px", top: "50%",
-                transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "16px",
-              }}>€</span>
+              <span style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", fontSize: "16px" }}>€</span>
               <input
                 className="input-field"
                 type="number"
@@ -259,19 +267,13 @@ export default function TransactionForm({ type }: TransactionFormProps) {
           </div>
 
           {error && (
-            <div style={{
-              background: "var(--red-soft)", border: "1px solid rgba(255,94,122,0.2)",
-              borderRadius: "8px", padding: "12px 14px", fontSize: "13px", color: "var(--red)",
-            }}>
+            <div style={{ background: "var(--red-soft)", border: "1px solid rgba(255,94,122,0.2)", borderRadius: "8px", padding: "12px 14px", fontSize: "13px", color: "var(--red)" }}>
               {error}
             </div>
           )}
 
           {success && (
-            <div style={{
-              background: "var(--green-soft)", border: "1px solid rgba(34,211,160,0.2)",
-              borderRadius: "8px", padding: "12px 14px", fontSize: "13px", color: "var(--green)",
-            }}>
+            <div style={{ background: "var(--green-soft)", border: "1px solid rgba(34,211,160,0.2)", borderRadius: "8px", padding: "12px 14px", fontSize: "13px", color: "var(--green)" }}>
               ✓ {success}
             </div>
           )}
@@ -280,11 +282,7 @@ export default function TransactionForm({ type }: TransactionFormProps) {
             className="btn-primary"
             type="submit"
             disabled={loading}
-            style={{
-              width: "100%",
-              background: cfg.color,
-              boxShadow: loading ? "none" : `0 8px 24px ${cfg.bg}`,
-            }}
+            style={{ width: "100%", background: cfg.color, boxShadow: loading ? "none" : `0 8px 24px ${cfg.bg}` }}
           >
             {loading ? "Procesando..." : cfg.title}
           </button>
